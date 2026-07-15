@@ -134,11 +134,13 @@
 
   /* タイトルと同じ幅に収まるよう、器に合わせて伸ばす。
      以前は強制改行を入れていて、幅によって変な位置で折れていた */
+  /* nowrap のままだと器を押し広げてイラストに被る。
+     折り返しを許して、はみ出させない */
   .lede{
     color:var(--ink-mid);
-    font-size:clamp(.72rem, 2.6vw, .95rem);
-    line-height:1.6;
-    white-space:nowrap;
+    font-size:clamp(.66rem, 2.3vw, .92rem);
+    line-height:1.55;
+    overflow-wrap:anywhere;
   }
 
   /* 進み具合＝巻物がひらいていく */
@@ -258,22 +260,36 @@
   }
   .ht-note b{color:#C7522F}
 
-  .zones{display:flex;gap:9px;margin-top:14px}
+  /* どちらかを押すものだと分かるように、一言そえる */
+  .zone-lead{
+    margin:14px 0 7px;
+    font-family:'Yusei Magic',sans-serif;
+    font-size:.79rem;
+    color:var(--pink-deep);
+    text-align:center;
+  }
+  .zone-lead::before{content:"▼ ";font-size:.66rem;opacity:.7}
+
+  .zones{display:flex;gap:9px;margin-top:0}
 
   /* GPTsゾーンを選んだときだけ出る注意書き */
+  /* 以前は <b> が inline-block 相当で分断され、
+     「ボタン／を押す／と」と縦に割れて読めなかった */
   .gpts-note{
-    display:flex;align-items:flex-start;gap:7px;
+    display:flex;align-items:flex-start;gap:8px;
     margin-top:11px;
-    padding:9px 11px;
+    padding:10px 12px;
     background:var(--blue-pale);
     border:1.5px solid var(--blue-line);
     border-radius:9px;
-    font-size:.73rem;line-height:1.65;
+    font-size:.76rem;line-height:1.75;
     color:#2C4D77;
   }
   .gpts-note[hidden]{display:none}
-  .gpts-note svg{flex:0 0 auto;width:14px;height:14px;margin-top:2px;color:var(--blue)}
-  .gpts-note b{color:var(--blue)}
+  .gpts-note svg{flex:0 0 auto;width:15px;height:15px;margin-top:3px;color:var(--blue)}
+  .gpts-note > span{flex:1;min-width:0}
+  .gpts-note b{color:var(--blue);font-weight:700;white-space:nowrap}
+  .nt-br{display:none}
   .zone{
     flex:1;
     font-family:inherit;font-size:.87rem;font-weight:700;
@@ -315,7 +331,61 @@
   .search input:focus{outline:none;border-color:var(--pink-num);background:#fff}
   .search svg{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:19px;height:19px;pointer-events:none}
 
-  .tabs{display:flex;gap:6px;overflow-x:auto;padding:10px 2px 4px;scrollbar-width:none}
+  /* 横スクロールできることが分からない、という声への対処。
+     右端をぼかして「まだ続いている」ことを見せる。
+     スクロールし切ったら消える（JSでクラスを付け外し） */
+  /* 右にまだ続いているときだけ出す。
+     常に出すと、スクロールし終えた人にも残って邪魔になる */
+  .tabs-lead{
+    margin:9px 0 -2px;
+    font-size:.71rem;
+    color:var(--pink-deep);
+    display:flex;align-items:center;gap:4px;
+  }
+  .tabs-lead[hidden]{display:none}
+  .tabs-lead::before{content:"👉";font-size:.8rem}
+
+  .tabs-wrap{position:relative}
+  .tabs-wrap::before,.tabs-wrap::after{
+    content:"";
+    position:absolute;top:0;bottom:4px;
+    width:34px;
+    pointer-events:none;
+    opacity:0;transition:opacity .2s;
+    z-index:2;
+  }
+  .tabs-wrap::before{
+    left:0;
+    background:linear-gradient(90deg, var(--white) 30%, transparent);
+  }
+  .tabs-wrap::after{
+    right:0;
+    background:linear-gradient(270deg, var(--white) 30%, transparent);
+  }
+  .tabs-wrap.can-left::before{opacity:1}
+  .tabs-wrap.can-right::after{opacity:1}
+
+  /* 右端の矢印。ぼかしだけだと気づかない人もいる */
+  .tabs-wrap.can-right .tabs-hint{opacity:1}
+  .tabs-hint{
+    position:absolute;right:2px;top:50%;
+    transform:translateY(-50%);
+    width:20px;height:20px;
+    display:grid;place-items:center;
+    background:var(--pink-num);color:#fff;
+    border-radius:50%;
+    opacity:0;transition:opacity .2s;
+    pointer-events:none;z-index:3;
+    box-shadow:0 1px 3px rgba(0,0,0,.18);
+    animation:nudge 1.6s ease-in-out infinite;
+  }
+  .tabs-hint svg{width:10px;height:10px}
+  @keyframes nudge{
+    0%,100%{transform:translateY(-50%) translateX(0)}
+    50%{transform:translateY(-50%) translateX(2px)}
+  }
+
+  .tabs{display:flex;gap:6px;overflow-x:auto;padding:10px 2px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .tabs::-webkit-scrollbar{display:none}
   .tab{
     flex:0 0 auto;font-family:inherit;font-size:.79rem;font-weight:700;
@@ -592,7 +662,17 @@
   .f-ig svg{width:15px;height:15px}
 
   .f-by{padding:22px 20px 26px;text-align:center;background:#FCFAF7}
-  .f-by-lead{font-size:.79rem;color:var(--ink-mid)}
+  .f-by-lead{font-size:.79rem;color:var(--ink-mid);line-height:1.85}
+
+  /* 「賛助会／員」のように語の途中で切れるのを防ぐ。
+     幅は変わるので、<br>を打つのではなく折れない単位を指定する */
+  .nw{display:inline-block;white-space:nowrap}
+
+  /* ただし画面より長い行は、はみ出すより折れるほうがマシ */
+  @media(max-width:380px){
+    .f-disc .nw{white-space:normal}
+    .f-disc{font-size:.63rem}
+  }
   .corp{
     color:var(--pink-deep);font-weight:700;
     text-decoration:underline;text-underline-offset:3px;
@@ -602,7 +682,7 @@
   }
   .corp:hover{text-decoration-color:var(--pink-deep)}
   .corp:focus-visible{outline:2px solid var(--pink-num);outline-offset:2px;border-radius:3px}
-  .f-by-sub{font-size:.69rem;color:var(--ink-soft);margin-top:5px;line-height:1.8}
+  .f-by-sub{font-size:.69rem;color:var(--ink-soft);margin-top:5px;line-height:1.9}
   .f-links{margin-top:10px}
   /* 園長の受け皿。ただし先生向けの図鑑なので、控えめに置く */
   .f-cta{
@@ -619,12 +699,12 @@
   .f-cta:focus-visible{outline:2px solid var(--pink-num);outline-offset:2px;border-radius:3px}
   .f-cta::after{content:"›";font-size:.9rem;line-height:1;opacity:.65}
   .f-note{margin-top:13px;font-size:.67rem;color:#A99A8C;line-height:1.8}
-  /* 免責。読ませたいが、圧は与えない */
+  /* 免責。園の書類に使う以上、読み飛ばされては困るので赤字にする */
   .f-disc{
-    margin:12px auto 0;max-width:440px;
+    margin:12px auto 0;max-width:460px;
     padding-top:11px;
     border-top:1px solid #EDE2D8;
-    font-size:.65rem;color:#B0A396;line-height:1.85;
+    font-size:.66rem;color:#C7522F;line-height:1.95;
   }
 
   @media(max-width:520px){
@@ -675,7 +755,7 @@
       <div class="mark" role="img" aria-label="ほいくのSASUKE サスケの巻物メモ"></div>
       <div class="head-text">
         <h1>プロンプト<span class="zu">図鑑</span></h1>
-        <p class="lede">保育・教育現場のAIの、はじめの一歩。</p>
+        <p class="lede">保育・教育現場のAI活用の、はじめの一歩。</p>
       </div>
       <div class="head-sasuke" aria-hidden="true"></div>
     </div>
@@ -719,6 +799,8 @@
       </div>
     </details>
 
+    <p class="zone-lead">まずは、つかいたいモードを選んでね</p>
+
     <div class="zones" role="tablist">
       <button class="zone" role="tab" data-zone="prompts" aria-selected="true">
         呪文をコピー<small>コピペしてAIに貼るだけ</small>
@@ -732,7 +814,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8.5v.01"/>
       </svg>
-      ボタンを押すと<b>ChatGPTのサスケ（GPTs）</b>が開きます。ChatGPTのアカウント（無料登録でもOK）が必要です。
+      <span>ボタンを押すと<b>ChatGPTのサスケ（GPTs）</b>が開きます。<br class="nt-br">ChatGPTのアカウント（無料登録でもOK）が必要です。</span>
     </p>
 
     <div class="controls">
@@ -742,7 +824,14 @@
         </svg>
         <input id="q" type="search" placeholder="やりたいことで探す（例：おたより、連絡帳）" autocomplete="off">
       </div>
-      <div class="tabs" id="tabs" role="tablist"></div>
+      <p class="tabs-lead" id="tabsLead" hidden>カテゴリは右にスライドすると、まだ続きがあるよ</p>
+
+      <div class="tabs-wrap" id="tabsWrap">
+        <div class="tabs" id="tabs" role="tablist"></div>
+        <span class="tabs-hint" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </span>
+      </div>
     </div>
 
     <main class="grid" id="grid" aria-live="polite"></main>
@@ -769,19 +858,19 @@
     </div>
 
     <div class="f-by">
-      <p class="f-by-lead">ほいくのSASUKEは、<a class="corp" href="https://sinteras.net/" target="_blank" rel="noopener">株式会社SINTERAS</a>が運営しています。</p>
+      <p class="f-by-lead">ほいくのSASUKEは、<br><a class="corp" href="https://sinteras.net/" target="_blank" rel="noopener">株式会社SINTERAS</a>が運営しています。</p>
       <p class="f-by-sub">
         保育園・幼稚園・認定こども園のAI・DX支援<br>
-        全国認定こども園協会 賛助会員・群馬県認定こども園協会 賛助会員
+        <span class="nw">全国認定こども園協会 賛助会員</span>・<span class="nw">群馬県認定こども園協会 賛助会員</span>
       </p>
       <div class="f-links">
         <a class="f-cta" href="FORM_URL" target="_blank" rel="noopener">園での導入・研修のご相談</a>
       </div>
       <p class="f-note">この図鑑は登録不要で、どなたでもご利用いただけます。<br>ChatGPT・Gemini など、園でお使いのAIでそのまま動きます。</p>
       <p class="f-disc">
-        AIが生成した内容は、正確さを保証するものではありません。<br>
-        園の書類としてお使いになる前に、必ず先生ご自身の目でご確認ください。<br>
-        個人情報や園児のお名前は入力しないようご注意ください。
+        <span class="nw">AIが生成した内容は、正確さを保証するものではありません。</span><br>
+        <span class="nw">園の書類としてお使いになる前に、</span><span class="nw">必ず先生ご自身の目でご確認ください。</span><br>
+        <span class="nw">個人情報や園児のお名前は入力しないようご注意ください。</span>
       </p>
     </div>
   </footer>
@@ -1027,7 +1116,25 @@ function buildTabs(){
   tabs.innerHTML = cats.map(c =>
     `<button class="tab" role="tab" aria-selected="${c===cat}" data-cat="${esc(c)}">${esc(c)}</button>`
   ).join('');
+  updateTabHint();
 }
+
+/* まだ横に続いているかを見て、端のぼかしと案内文を出し分ける */
+function updateTabHint(){
+  const wrap = document.getElementById('tabsWrap');
+  if (!wrap) return;
+  const max = tabs.scrollWidth - tabs.clientWidth;
+  const right = tabs.scrollLeft < max - 4;
+  wrap.classList.toggle('can-left',  tabs.scrollLeft > 4);
+  wrap.classList.toggle('can-right', right);
+
+  // 案内文は、一度でも動かしたら消す（もう分かっているので）
+  const lead = document.getElementById('tabsLead');
+  if (lead) lead.hidden = !right || tabs.scrollLeft > 4;
+}
+
+tabs.addEventListener('scroll', updateTabHint, {passive:true});
+addEventListener('resize', updateTabHint);
 
 tabs.addEventListener('click', e => {
   const t = e.target.closest('.tab');
