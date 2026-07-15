@@ -397,6 +397,24 @@
   }
   .tab:hover{border-color:var(--pink-num);color:var(--pink-deep)}
   .tab[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  /* つかったもの＝ハンコと同じ朱色。他のカテゴリとは種類が違うので色で分ける */
+  .tab-used{
+    border-color:#E8B9AC;
+    color:#C7522F;
+    background:#FFF6F3;
+  }
+  .tab-used i{
+    font-style:normal;
+    display:inline-grid;place-items:center;
+    min-width:15px;height:15px;padding:0 3px;
+    margin-left:3px;
+    background:#C7522F;color:#fff;
+    border-radius:99px;
+    font-size:.62rem;
+  }
+  .tab-used[aria-selected="true"]{background:#C7522F;color:#fff;border-color:#C7522F}
+  .tab-used[aria-selected="true"] i{background:#fff;color:#C7522F}
   .tab:focus-visible{outline:2px solid var(--pink-deep);outline-offset:2px}
 
   /* ══════════════════════════════════════════
@@ -1111,11 +1129,24 @@ zones.forEach(z => z.addEventListener('click', () => {
 }));
 
 /* ── カテゴリタブ ── */
+const USED = '__used__';   // 「つかったもの」タブの内部名
+
 function buildTabs(){
   const cats = ['すべて', ...new Set(list().map(p => p.category).filter(Boolean))];
-  tabs.innerHTML = cats.map(c =>
-    `<button class="tab" role="tab" aria-selected="${c===cat}" data-cat="${esc(c)}">${esc(c)}</button>`
-  ).join('');
+
+  // このゾーンで、実際につかったものが1つ以上あるときだけタブを出す。
+  // 0件のタブを押させると「壊れてる?」となるため
+  const usedHere = list().some(p => cleared.has(p.id));
+
+  tabs.innerHTML = cats.map((c, i) => {
+    const btn = `<button class="tab" role="tab" aria-selected="${c===cat}" data-cat="${esc(c)}">${esc(c)}</button>`;
+    // 「すべて」の直後に挿す
+    if (i === 0 && usedHere){
+      const n = list().filter(p => cleared.has(p.id)).length;
+      return btn + `<button class="tab tab-used" role="tab" aria-selected="${cat===USED}" data-cat="${USED}">つかったもの <i>${n}</i></button>`;
+    }
+    return btn;
+  }).join('');
   updateTabHint();
 }
 
@@ -1148,7 +1179,8 @@ tabs.addEventListener('click', e => {
 function render(){
   const kw = q.value.trim().toLowerCase();
   const items = list().filter(p => {
-    if (cat !== 'すべて' && p.category !== cat) return false;
+    if (cat === USED){ if (!cleared.has(p.id)) return false; }
+    else if (cat !== 'すべて' && p.category !== cat) return false;
     if (!kw) return true;
     return [p.title, p.prompt, p.summary, p.maki, p.category, p.target, (p.tags||[]).join(' ')]
       .filter(Boolean).join(' ').toLowerCase().includes(kw);
@@ -1157,6 +1189,13 @@ function render(){
   if (!items.length){
     // 見つからなかった検索語は、次に作るネタになる
     if (kw.length >= 2) logMiss(kw);
+    if (cat === USED && !kw){
+      grid.innerHTML = `<div class="state">
+        <b>まだ、つかったものがありません</b>
+        <p>コピーすると、ここに集まります。<br>よく使うものを、すぐ取り出せるようになります。</p>
+      </div>`;
+      return;
+    }
     grid.innerHTML = `<div class="state">
       <b>「${esc(q.value)}」${zone==='gpts'?'の巻物':'の呪文'}はまだありません</b>
       <p>ちがう言葉で探すか、Instagramのメッセージでリクエストしてください。<br>次の更新で追加します。</p>
@@ -1295,6 +1334,7 @@ function markCleared(id, card){
   if (card) card.classList.add('cleared');
   cleared.add(id);
   save();
+  buildTabs();   // 初めて使ったとき、タブを出す／件数を更新する
 }
 
 async function copy(text){
