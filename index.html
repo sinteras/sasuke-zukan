@@ -409,6 +409,24 @@
   .peek[aria-expanded="true"] svg{transform:rotate(180deg)}
   .peek:focus-visible{outline:2px solid var(--pink-num);outline-offset:2px}
 
+  /* やり方動画。ある行だけ出る。
+     コピーが主役なので、その下に控えめに置く */
+  .video-btn{
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    margin-top:7px;
+    font-family:inherit;font-size:.78rem;font-weight:700;
+    padding:9px;min-height:40px;
+    background:#FFF4F5;
+    color:#C4526E;
+    border:1.5px solid #F2D3D6;
+    border-radius:999px;
+    text-decoration:none;
+    transition:.13s;
+  }
+  .video-btn:hover{background:#FDE9EC;border-color:var(--pink-num)}
+  .video-btn:focus-visible{outline:2px solid var(--pink-num);outline-offset:2px}
+  .video-btn svg{width:15px;height:15px;flex:0 0 auto}
+
   /* DOMの順番と見た目の順番を一致させる（column-reverse をやめた） */
   .card-foot{display:flex;align-items:stretch;gap:8px;margin-top:11px}
   .card-foot.solo{display:block}
@@ -782,7 +800,7 @@ const SAMPLE = {
     {
       id:'001', title:'連絡帳の返信を、その子の様子から一気に書く', category:'連絡帳',
       tags:['時短','保護者対応'], level:'初級', target:'担任',
-      use:'朝の受け入れ後・お昼寝中',
+      use:'朝の受け入れ後・お昼寝中', video:'https://www.instagram.com/reel/xxxxxxx/',
       prompt:'あなたは経験15年の保育士です。以下のメモをもとに、連絡帳の返信を書いてください。\n\n【今日の様子のメモ】\nここに箇条書きで貼る\n\n【条件】\n・150文字程度\n・その子ができるようになったことを1つ必ず入れる\n・保護者が読んで安心し、うれしくなる文章\n・専門用語は使わず、やわらかい言葉で\n・「〜させました」ではなく「〜していました」と子どもが主語'
     },
     {
@@ -800,7 +818,7 @@ const SAMPLE = {
     {
       id:'004', title:'月案のねらいを、指針の言葉に翻訳する', category:'指導計画',
       tags:['計画','要録'], level:'中級', target:'担任',
-      use:'月末の計画づくり',
+      use:'月末の計画づくり', video:'https://www.instagram.com/reel/xxxxxxx/',
       prompt:'保育所保育指針をふまえて、月案のねらいを整えてください。\n\n【クラス】◯歳児\n【月】◯月\n【やりたいこと・思っていること】\nふだんの言葉のままでOK\n\n【条件】\n・5領域のどれに当たるかを明示する\n・ねらいは3つ、子どもを主語にして書く\n・内容（ねらいに対する具体的な活動）も各2つずつ\n・指針の文言に寄せつつ、現場で読んでわかる言葉に'
     },
     {
@@ -822,7 +840,7 @@ const SAMPLE = {
       maki:'月案の巻', category:'指導計画', tags:['5領域','時短'], level:'初級',
       summary:'クラスと月、子どもの今の姿、行事。この3つに答えるだけで、5領域のねらいから環境構成、家庭連携、自己評価まで一気に書き上がります。',
       steps:['ボタンを押してGPTsをひらく','サスケの質問に3つ答える','出てきた月案を、先生の目で直す'],
-      url:'https://chatgpt.com/g/g-xxxxxxxx'
+      url:'https://chatgpt.com/g/g-xxxxxxxx', video:'https://www.instagram.com/reel/xxxxxxx/'
     },
     {
       id:'G02', title:'今週の週案を、来週の姿につなげて書く',
@@ -1046,6 +1064,19 @@ function render(){
 
 }
 
+/* video 列にURLが入っている行だけ、動画ボタンを出す。
+   空なら何も出さない（全部の呪文に動画があるわけではないため） */
+function videoBtn(p){
+  if (!p.video) return '';
+  return `
+    <a class="video-btn" href="${esc(p.video)}" target="_blank" rel="noopener" data-video="${esc(p.id)}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/>
+      </svg>
+      やり方動画を見る
+    </a>`;
+}
+
 function chips(p){
   return `${p.category?`<span class="chip cat">${esc(p.category)}</span>`:''}
           ${p.level?`<span class="chip lv">${esc(p.level)}</span>`:''}
@@ -1070,6 +1101,7 @@ function promptCard(p, i){
           プロンプトを見る<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
       </div>
+      ${videoBtn(p)}
       <pre class="prompt" id="p${esc(p.id)}">${esc(p.prompt)}</pre>
     </article>`;
 }
@@ -1102,6 +1134,7 @@ function makiCard(p, i){
           </svg>
         </a>
       </div>
+      ${videoBtn(p)}
     </article>`;
 }
 
@@ -1114,6 +1147,15 @@ grid.addEventListener('click', async e => {
     const open = box.classList.toggle('open');
     more.setAttribute('aria-expanded', open);
     more.childNodes[0].nodeValue = open ? 'とじる' : 'プロンプトを見る';
+    return;
+  }
+
+  // やり方動画
+  const vid = e.target.closest('[data-video]');
+  if (vid){
+    const id = vid.dataset.video;
+    const item = DATA.prompts.find(x=>x.id===id) || DATA.gpts.find(x=>x.id===id);
+    log('video', item);
     return;
   }
 
