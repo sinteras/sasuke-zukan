@@ -421,6 +421,20 @@
      カード：白が主役。ピンクは左の背表紙だけ。
      読むものなので、静かにする。
      ══════════════════════════════════════════ */
+  /* 検索中、呪文と巻物の両方から出ていることを伝える */
+  .mix-note{
+    display:flex;align-items:center;flex-wrap:wrap;gap:5px;
+    margin:12px 0 -2px;
+    font-size:.74rem;font-weight:700;
+    color:var(--ink-mid);
+  }
+  .mix-note[hidden]{display:none}
+  .mix-note b{
+    font-size:.71rem;padding:1px 8px;border-radius:99px;color:#fff;
+  }
+  .mix-note b.p{background:var(--pink-num)}
+  .mix-note b.b{background:var(--blue)}
+
   .grid{display:grid;gap:11px;margin-top:14px}
 
   .card{
@@ -639,6 +653,77 @@
   }
   .state b{font-size:.98rem;color:var(--ink)}
   .state p{font-size:.84rem;margin-top:7px;color:var(--ink-soft)}
+  /* コピー直後の行き先案内 */
+  .goto{
+    margin-top:11px;padding:11px 12px;
+    background:var(--cream);
+    border:1.5px solid var(--cream-line);
+    border-radius:10px;
+    opacity:0;transform:translateY(-4px);
+    transition:opacity .25s, transform .25s;
+  }
+  .goto.in{opacity:1;transform:none}
+  .goto-lead{font-size:.78rem;color:#5E4A22;margin-bottom:8px;line-height:1.6}
+  .goto-lead b{color:#C7522F}
+
+  .goto-btns{display:flex;gap:7px;flex-wrap:wrap}
+  .goto-btn{
+    flex:1 1 auto;
+    display:flex;align-items:center;justify-content:center;gap:5px;
+    font-family:inherit;font-size:.79rem;font-weight:700;
+    padding:10px 12px;min-height:42px;
+    border-radius:999px;text-decoration:none;
+    white-space:nowrap;transition:.1s;
+  }
+  .goto-btn.gpt{background:#10A37F;color:#fff;box-shadow:0 3px 0 #0B7A5E}
+  .goto-btn.gem{background:#4285F4;color:#fff;box-shadow:0 3px 0 #2A5FC4}
+  .goto-btn:active{transform:translateY(3px);box-shadow:none!important}
+  .goto-btn:focus-visible{outline:3px solid var(--pink-num);outline-offset:2px}
+  .goto-btn svg{width:12px;height:12px;flex:0 0 auto}
+
+  .goto-note{
+    margin-top:8px;
+    font-size:.69rem;color:var(--ink-soft);line-height:1.7;
+  }
+
+  /* 検索窓に本文を貼ってしまったとき */
+  .state.paste{
+    background:#FFF8E4;
+    border:2px solid #E3C97E;
+    border-style:solid;
+    text-align:left;
+    padding:20px 16px;
+  }
+  .state.paste b{color:#C7522F}
+  .state.paste > p{margin-bottom:13px}
+  .state.paste .goto-note{text-align:center}
+
+  /* 0件のときのリクエストボタン。ここが一番の受け口 */
+  .req-btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    margin-top:15px;
+    font-family:inherit;font-size:.86rem;font-weight:700;
+    padding:12px 22px;min-height:44px;
+    max-width:100%;
+    background:var(--pink-num);color:#fff;
+    border:none;border-radius:999px;
+    box-shadow:0 3px 0 #C96C6C;
+    cursor:pointer;transition:.09s;
+    word-break:break-all;
+  }
+  .req-btn:hover{filter:brightness(1.05)}
+  .req-btn:active{transform:translateY(3px);box-shadow:0 0 0 #C96C6C}
+  .req-btn:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+  .req-btn.done{background:var(--blue);box-shadow:0 3px 0 var(--blue-deep)}
+  .req-btn svg{width:16px;height:16px;flex:0 0 auto}
+
+  .req-note{
+    margin-top:9px;
+    font-size:.68rem!important;
+    color:var(--ink-soft);
+    line-height:1.7;
+  }
+
   .retry{
     margin-top:14px;font-family:inherit;font-weight:700;font-size:.82rem;
     padding:8px 20px;background:var(--pink-num);color:#fff;border:none;
@@ -773,7 +858,7 @@
       <div class="mark" role="img" aria-label="ほいくのSASUKE サスケの巻物メモ"></div>
       <div class="head-text">
         <h1>プロンプト<span class="zu">図鑑</span></h1>
-        <p class="lede">保育・教育現場のAI活用の、はじめの一歩。</p>
+        <p class="lede"><span class="nw">保育・教育現場のAI活用の、</span><span class="nw">はじめの一歩。</span></p>
       </div>
       <div class="head-sasuke" aria-hidden="true"></div>
     </div>
@@ -840,7 +925,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="#B9A99C" stroke-width="2.6" stroke-linecap="round">
           <circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>
         </svg>
-        <input id="q" type="search" placeholder="やりたいことで探す（例：おたより、連絡帳）" autocomplete="off">
+        <input id="q" type="search" placeholder="やりたいことで探す（例：おたより 画像）" autocomplete="off">
       </div>
       <p class="tabs-lead" id="tabsLead" hidden>カテゴリは右にスライドすると、まだ続きがあるよ</p>
 
@@ -851,6 +936,8 @@
         </span>
       </div>
     </div>
+
+    <p class="mix-note" id="mixNote" hidden></p>
 
     <main class="grid" id="grid" aria-live="polite"></main>
 
@@ -900,6 +987,9 @@
    GASのウェブアプリURL（/exec で終わるもの）
    ═══════════════════════════════════════════ */
 const API_URL = 'https://script.google.com/macros/s/AKfycbyJeNr0luaR0m1oJz3HuFig6cj5W6FtkoQFwCIidxt5UMa8I5TIm1nxpv6pHH9ZG5ff/exec';
+
+/* リクエストの受け先。DMは本文を渡せないので、コピーしてから開く */
+const IG_URL = 'https://www.instagram.com/hoiku_no_sasuke/';
 
 /* API_URLが空の間は、この見本データで動きます */
 const SAMPLE = {
@@ -1122,8 +1212,8 @@ zones.forEach(z => z.addEventListener('click', () => {
   const note = document.getElementById('gptsNote');
   if (note) note.hidden = (zone !== 'gpts');
   q.placeholder = zone === 'gpts'
-    ? 'やりたいことで探す（例：月案、遊び）'
-    : 'やりたいことで探す（例：おたより、連絡帳）';
+    ? 'やりたいことで探す（例：月案 5歳）'
+    : 'やりたいことで探す（例：おたより 画像）';
   buildTabs();
   render();
 }));
@@ -1176,15 +1266,70 @@ tabs.addEventListener('click', e => {
 });
 
 /* ── 描画 ── */
+/* ひらがな⇄カタカナを吸収する。
+   「ヒヤリハット」を「ひやりはっと」で探す先生がいるため。
+   ※ 漢字⇄かな（月案⇄げつあん）は形態素解析が要るので対応しない */
+function kana(s){
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60))  // カタカナ→ひらがな
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)) // 全角英数→半角
+    .replace(/[ー－―‐]/g, '-')   // 長音・ハイフンの揺れ
+    .replace(/[（）\(\)「」『』・、。／\/]/g, ' '); // 区切り記号は空白扱い
+}
+
+function hit(p, kw){
+  const hay = kana([p.title, p.prompt, p.summary, p.maki, p.category, p.target, (p.tags||[]).join(' ')]
+    .filter(Boolean).join(' '));
+  /* スペース区切りは AND 検索。
+     「おたより 画像」で、両方を含むものだけ出す */
+  return kw.split(/[\s　]+/).filter(Boolean).every(w => hay.includes(kana(w)));
+}
+
 function render(){
-  const kw = q.value.trim().toLowerCase();
-  const items = list().filter(p => {
+  const kw = q.value.trim().toLowerCase();  // 正規化は hit() 側でまとめて行う
+
+  /* 検索中は、呪文と巻物の両方から探す。
+     先生は「月案」で探しているのであって、
+     それが呪文か巻物かは知らないため。
+     _kind を付けて、カードの形は元のゾーンに従わせる */
+  const searching = !!kw;
+  const pool = searching
+    ? [ ...DATA.prompts.map(p => ({...p, _kind:'prompts'})),
+        ...DATA.gpts.map(p => ({...p, _kind:'gpts'})) ]
+    : list().map(p => ({...p, _kind:zone}));
+
+  const items = pool.filter(p => {
     if (cat === USED){ if (!cleared.has(p.id)) return false; }
-    else if (cat !== 'すべて' && p.category !== cat) return false;
+    else if (!searching && cat !== 'すべて' && p.category !== cat) return false;
     if (!kw) return true;
-    return [p.title, p.prompt, p.summary, p.maki, p.category, p.target, (p.tags||[]).join(' ')]
-      .filter(Boolean).join(' ').toLowerCase().includes(kw);
+    return hit(p, kw);
   });
+
+  /* 検索窓にプロンプト本文が貼られた場合。
+     実際にログで起きた事故。「貼る場所」を探して、画面で唯一の
+     入力欄である検索窓に貼ってしまう */
+  if (kw.length >= 60){
+    log('paste_miss', {id:'-', title:kw.slice(0,60), category:zone});
+    grid.innerHTML = `<div class="state paste">
+      <b>それは、呪文の本文ですね</b>
+      <p>貼りつける場所は、<b>ChatGPTなどのAI</b>です。<br>この図鑑の検索まどではありません。</p>
+      <div class="goto-btns">
+        <a class="goto-btn gpt" href="https://chatgpt.com/" target="_blank" rel="noopener">
+          ChatGPTをひらく
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
+        </a>
+        <a class="goto-btn gem" href="https://gemini.google.com/" target="_blank" rel="noopener">
+          Geminiをひらく
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
+        </a>
+      </div>
+      <p class="goto-note">呪文はコピーされたままです。<br>ひらいて長押し →「貼り付け」で送れます。</p>
+    </div>`;
+    const note = document.getElementById('mixNote');
+    if (note) note.hidden = true;
+    return;
+  }
 
   if (!items.length){
     // 見つからなかった検索語は、次に作るネタになる
@@ -1196,15 +1341,40 @@ function render(){
       </div>`;
       return;
     }
+    /* 0件は失敗ではなく、リクエストを受け取る最大の機会。
+       「欲しいのに無い」と本人が分かっている、この瞬間しかない。
+       Instagramに行けと言うだけでは、アプリを切り替えて打ち直す手間で誰も来ない */
     grid.innerHTML = `<div class="state">
-      <b>「${esc(q.value)}」${zone==='gpts'?'の巻物':'の呪文'}はまだありません</b>
-      <p>ちがう言葉で探すか、Instagramのメッセージでリクエストしてください。<br>次の更新で追加します。</p>
+      <b>「${esc(q.value)}」は、まだありません</b>
+      <p>サスケに作ってほしい、と伝えられます。<br>先生のリクエストから作っています。</p>
+      <button class="req-btn" data-req="${esc(q.value)}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 013.6 11a8.4 8.4 0 018.4-8.4 8.4 8.4 0 019 8.4z"/>
+        </svg>
+        「${esc(q.value)}」をリクエストする
+      </button>
+      <p class="req-note">検索した言葉をコピーして、Instagramのメッセージを開きます。<br>貼りつけて送るだけです。</p>
     </div>`;
     return;
   }
 
+  // 検索中は、両方から出ていることを伝える
+  const note = document.getElementById('mixNote');
+  if (note){
+    if (searching){
+      const np = items.filter(x=>x._kind==='prompts').length;
+      const ng = items.filter(x=>x._kind==='gpts').length;
+      note.hidden = false;
+      note.innerHTML = `「${esc(q.value)}」の検索結果`
+        + (np ? ` <b class="p">呪文 ${np}</b>` : '')
+        + (ng ? ` <b class="b">巻物 ${ng}</b>` : '');
+    } else {
+      note.hidden = true;
+    }
+  }
+
   grid.innerHTML = items.map((p, i) =>
-    zone === 'gpts' ? makiCard(p, i) : promptCard(p, i)
+    p._kind === 'gpts' ? makiCard(p, i) : promptCard(p, i)
   ).join('');
 
 
@@ -1296,6 +1466,26 @@ grid.addEventListener('click', async e => {
     return;
   }
 
+  // 貼り先へ移動
+  const goto = e.target.closest('[data-goto]');
+  if (goto){
+    const item = DATA.prompts.find(x => x.id === goto.dataset.goto);
+    log(goto.classList.contains('gem') ? 'goto_gemini' : 'goto_chatgpt', item);
+    return;
+  }
+
+  // リクエスト：検索語をコピーしてからInstagramへ
+  const req = e.target.closest('[data-req]');
+  if (req){
+    const word = req.dataset.req;
+    log('request', {id:'-', title:word, category:zone});
+    const ok = await copy(`「${word}」の呪文がほしいです！`);
+    req.classList.add('done');
+    req.childNodes[2].nodeValue = ok ? ' コピーしました。Instagramへ…' : ' Instagramへ…';
+    setTimeout(() => { window.open(IG_URL, '_blank', 'noopener'); }, 700);
+    return;
+  }
+
   // やり方動画
   const vid = e.target.closest('[data-video]');
   if (vid){
@@ -1323,12 +1513,37 @@ grid.addEventListener('click', async e => {
   if (!ok){ btn.textContent = '長押しでコピーしてください'; return; }
 
   log('copy', item); // コピーが成功した時だけ記録する
+  showGoTo(btn.closest('.card'), item);
   btn.textContent = 'コピーしました';
   btn.classList.add('done');
   markCleared(item.id, btn.closest('.card'));
 
   setTimeout(() => { btn.textContent = 'もう一度コピー'; btn.classList.remove('done'); }, 1800);
 });
+
+/* コピーした直後に、貼る場所を教える。
+   ログで「プロンプト本文を検索窓に貼る」事故が起きていた。
+   コピー成功の瞬間が、一番迷子になりやすい */
+function showGoTo(card, item){
+  if (!card || card.querySelector('.goto')) return;
+  const el = document.createElement('div');
+  el.className = 'goto';
+  el.innerHTML = `
+    <p class="goto-lead"><b>コピーできました。</b>AIに貼りつけて送ってね。</p>
+    <div class="goto-btns">
+      <a class="goto-btn gpt" href="https://chatgpt.com/" target="_blank" rel="noopener" data-goto="${esc(item.id)}">
+        ChatGPTをひらく
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
+      </a>
+      <a class="goto-btn gem" href="https://gemini.google.com/" target="_blank" rel="noopener" data-goto="${esc(item.id)}">
+        Geminiをひらく
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg>
+      </a>
+    </div>
+    <p class="goto-note">ひらいたら、長押しして「貼り付け」。<br>【　】の中を、クラスの様子に書きかえてね。</p>`;
+  card.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('in'));
+}
 
 function markCleared(id, card){
   if (card) card.classList.add('cleared');
@@ -1400,7 +1615,19 @@ function logMiss(kw){
 }
 
 let timer;
-q.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(render, 140); });
+q.addEventListener('input', () => {
+  clearTimeout(timer);
+  timer = setTimeout(() => {
+    // 検索中は、カテゴリタブとモード切替を隠す。
+    // 両ゾーンを横断しているので、片方のカテゴリで絞ると意味が壊れる
+    const on = !!q.value.trim();
+    document.getElementById('tabsWrap').style.display = on ? 'none' : '';
+    const lead = document.getElementById('tabsLead');
+    if (lead && on) lead.hidden = true;
+    render();
+    if (!on){ buildTabs(); }
+  }, 140);
+});
 
 load();
 </script>
