@@ -686,6 +686,30 @@
     font-size:.69rem;color:var(--ink-soft);line-height:1.7;
   }
 
+  /* 計画づくりの検索 → GPTsへ誘導 */
+  .state.plan{
+    background:var(--blue-pale);
+    border:2px solid var(--blue-line);
+    text-align:center;
+    padding:22px 16px;
+  }
+  .state.plan b{color:var(--blue);font-size:1rem}
+  .state.plan > p{margin-bottom:14px}
+  .plan-btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    font-family:inherit;font-size:.9rem;font-weight:700;
+    padding:12px 26px;min-height:46px;max-width:100%;
+    background:var(--blue);color:#fff;
+    border-radius:999px;text-decoration:none;
+    box-shadow:0 3px 0 var(--blue-deep);
+    transition:.09s;
+  }
+  .plan-btn:active{transform:translateY(3px);box-shadow:none}
+  .plan-btn:focus-visible{outline:3px solid var(--pink-num);outline-offset:2px}
+  .plan-btn svg{width:16px;height:16px;flex:0 0 auto}
+  .plan-sub{margin-top:11px;font-size:.72rem;color:var(--ink-soft);line-height:1.7}
+  .plan-note{color:#C7522F;font-weight:700;font-size:.68rem}
+
   /* 検索窓に本文を貼ってしまったとき */
   .state.paste{
     background:#FFF8E4;
@@ -969,7 +993,7 @@
         <span class="nw">全国認定こども園協会 賛助会員</span>・<span class="nw">群馬県認定こども園協会 賛助会員</span>
       </p>
       <div class="f-links">
-        <a class="f-cta" href="FORM_URL" target="_blank" rel="noopener">園での導入・研修のご相談</a>
+        <a class="f-cta" href="https://forms.gle/UmFRQSzNLuGcK32b6" target="_blank" rel="noopener">園での導入・研修のご相談</a>
       </div>
       <p class="f-note">この図鑑は登録不要で、どなたでもご利用いただけます。<br>ChatGPT・Gemini など、園でお使いのAIでそのまま動きます。</p>
       <p class="f-disc">
@@ -1278,12 +1302,53 @@ function kana(s){
     .replace(/[（）\(\)「」『』・、。／\/]/g, ' '); // 区切り記号は空白扱い
 }
 
+/* 検索語を、探しやすい単位にほぐす。
+   先生は「4歳児8月ねらい」のように、年齢・月・種類をスペース無しで
+   つなげて打つ。そのままだと1個の塊として探して0件になるので、
+   年齢（○歳児）と月（○月）を切り出して、別々の語として扱う */
+function splitQuery(kw){
+  let rest = kw;
+  const parts = [];
+  // ○歳児 / ○歳
+  rest = rest.replace(/(\d+\s*歳児?)/g, (m) => { parts.push(m.replace(/\s/g,'')); return ' '; });
+  // ○月
+  rest = rest.replace(/(\d+\s*月)/g, (m) => { parts.push(m.replace(/\s/g,'')); return ' '; });
+  // 残りをスペースで分割
+  rest.split(/[\s　]+/).filter(Boolean).forEach(w => parts.push(w));
+  return parts.length ? parts : [kw];
+}
+
 function hit(p, kw){
-  const hay = kana([p.title, p.prompt, p.summary, p.maki, p.category, p.target, (p.tags||[]).join(' ')]
+  /* search 列は「先生が打ちそうな言葉」の置き場。
+     tags と違ってカードに表示しないので、いくら入れても見た目が汚れない。
+     かな表記・同義語・季節など、タイトルに無い語をここに入れる */
+  const hay = kana([p.title, p.prompt, p.summary, p.maki, p.category, p.target,
+                    (p.tags||[]).join(' '), p.search]
     .filter(Boolean).join(' '));
-  /* スペース区切りは AND 検索。
-     「おたより 画像」で、両方を含むものだけ出す */
-  return kw.split(/[\s　]+/).filter(Boolean).every(w => hay.includes(kana(w)));
+  // 年齢・月を切り出したうえで AND 検索
+  return splitQuery(kw).every(w => hay.includes(kana(w)));
+}
+
+/* 計画づくりの言葉。これが検索に含まれていて0件なら、
+   「探し物が無い」のではなく「サスケに任せれば作れる」場面。
+   リクエストではなく、その場でGPTsへ誘導する */
+const PLAN_WORDS = ['ねらい','月案','週案','日案','指導案','指導計画','個別','要録','10の姿','活動','製作'];
+function looksLikePlan(kw){
+  const k = kana(kw);
+  return PLAN_WORDS.some(w => k.includes(kana(w)));
+}
+/* 検索語に一番近いGPTsを選ぶ（当たった語数が多い順） */
+function bestGpts(kw){
+  const words = splitQuery(kw).map(kana);
+  let best = null, bestScore = 0;
+  DATA.gpts.forEach(g => {
+    if (String(g.id).startsWith('#')) return;
+    if (!g.url) return;
+    const hay = kana([g.title, g.summary, g.maki, g.category, (g.tags||[]).join(' '), g.search].filter(Boolean).join(' '));
+    const score = words.filter(w => hay.includes(w)).length;
+    if (score > bestScore){ bestScore = score; best = g; }
+  });
+  return best || DATA.gpts.find(g => !String(g.id).startsWith('#') && g.url) || null;
 }
 
 function render(){
@@ -1344,6 +1409,28 @@ function render(){
     /* 0件は失敗ではなく、リクエストを受け取る最大の機会。
        「欲しいのに無い」と本人が分かっている、この瞬間しかない。
        Instagramに行けと言うだけでは、アプリを切り替えて打ち直す手間で誰も来ない */
+    /* 計画づくりの言葉が入っているなら、それはリクエストではなく
+       「サスケに任せれば作れる」場面。GPTsへ直接誘導する。
+       先生は検索窓を、GPTsの入力欄と勘違いして「4歳児8月ねらい」等と
+       打っている。答えは既にあるので、そこへ橋渡しする */
+    if (looksLikePlan(kw)){
+      const g = bestGpts(kw);
+      if (g){
+        const note = document.getElementById('mixNote');
+        if (note) note.hidden = true;
+        grid.innerHTML = `<div class="state plan">
+          <b>それ、サスケが作れます</b>
+          <p>「${esc(q.value)}」のような計画づくりは、<br>探すより、サスケに任せるのが早いです。</p>
+          <a class="plan-btn" href="${esc(g.url)}" target="_blank" rel="noopener" data-goto-gpts="${esc(g.id)}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.5 2.3 7.1-6.3-4.6-6.3 4.6 2.3-7.1-6-4.5h7.6z"/></svg>
+            ${esc(g.maki || 'サスケ')}をひらく
+          </a>
+          <p class="plan-sub">サスケの質問に答えるだけ。文章を書かなくてOK。<br><span class="plan-note">ChatGPTのアカウント（無料登録でもOK）が必要です</span></p>
+        </div>`;
+        return;
+      }
+    }
+
     grid.innerHTML = `<div class="state">
       <b>「${esc(q.value)}」は、まだありません</b>
       <p>サスケに作ってほしい、と伝えられます。<br>先生のリクエストから作っています。</p>
@@ -1463,6 +1550,14 @@ grid.addEventListener('click', async e => {
     const open = box.classList.toggle('open');
     more.setAttribute('aria-expanded', open);
     more.childNodes[0].nodeValue = open ? 'とじる' : 'プロンプトを見る';
+    return;
+  }
+
+  // 0件からGPTsへ誘導（計画づくりの検索）
+  const gp = e.target.closest('[data-goto-gpts]');
+  if (gp){
+    const item = DATA.gpts.find(x => x.id === gp.dataset.gotoGpts);
+    log('goto_gpts_search', item);
     return;
   }
 
