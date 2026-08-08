@@ -261,6 +261,34 @@
   .ht-note b{color:#C7522F}
 
   /* どちらかを押すものだと分かるように、一言そえる */
+  /* 入力中の候補。打ちかけを拾う */
+  .sug{
+    position:absolute;left:0;right:0;top:calc(100% + 5px);
+    z-index:30;
+    background:#fff;
+    border:1.5px solid var(--cream-line);
+    border-radius:11px;
+    box-shadow:0 8px 22px rgba(120,80,60,.16);
+    overflow:hidden;list-style:none;
+  }
+  .sug[hidden]{display:none}
+  .sug-item{
+    display:flex;align-items:center;gap:8px;width:100%;
+    font-family:inherit;font-size:.79rem;text-align:left;
+    padding:11px 12px;min-height:44px;
+    background:none;border:none;border-bottom:1px solid #F4EDE4;
+    color:var(--ink);cursor:pointer;
+  }
+  .sug li:last-child .sug-item{border-bottom:none}
+  .sug-item:hover,.sug-item:focus-visible{background:var(--cream);outline:none}
+  .sug-kind{
+    flex:0 0 auto;font-size:.63rem;font-weight:700;color:#fff;
+    padding:2px 7px;border-radius:99px;
+  }
+  .sug-kind.p{background:var(--pink-num)}
+  .sug-kind.b{background:var(--blue)}
+  .sug-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
   .zone-lead{
     margin:14px 0 7px;
     font-family:'Yusei Magic',sans-serif;
@@ -476,25 +504,45 @@
   .chip.cat{background:var(--pink-pale);color:var(--pink-deep)}
   .chip.lv{background:var(--cream);color:#8A6A1F}
 
-  /* 本文：方眼をやめた。読ませる面はおとなしく */
+  /* 開閉するのは外側の箱。中の textarea は実体を持ったまま */
+  .prompt-wrap{
+    max-height:0;opacity:0;
+    margin-top:0;overflow:hidden;
+    transition:max-height .35s ease, opacity .2s, margin .3s;
+  }
+  .prompt-wrap.open{max-height:200em;opacity:1;margin-top:10px}
+
+  /* 「この下に書きこめます」の案内。
+     深夜にプロンプトを検索窓へ貼る事故が繰り返されていた。
+     原因は、図鑑に書きこむ場所が無かったこと */
+  .fill-hint{
+    display:flex;align-items:flex-start;gap:7px;
+    background:var(--cream);
+    border:1.5px solid var(--cream-line);
+    border-radius:8px;
+    padding:9px 11px;margin-bottom:7px;
+    font-size:.73rem;line-height:1.65;color:#5E4A22;
+  }
+  .fill-hint b{color:#C7522F}
+  .fill-hint svg{flex:0 0 auto;width:14px;height:14px;margin-top:3px;color:#B08D34}
+  .fill-note{margin-top:6px;font-size:.69rem;color:var(--ink-soft);text-align:right}
+
+  /* 本文：読むだけでなく、その場で書きかえる面になった */
   .prompt{
+    display:block;width:100%;
     font-family:'M PLUS 1 Code',monospace;
     font-size:.83rem;font-weight:400;line-height:1.95;
-    white-space:pre-wrap;word-break:break-word;
     color:#413A32;
     background:#FCFAF7;
     border:1px solid #EDE2D8;
     border-radius:8px;
-    /* 既定は完全に閉じる。カードの38%を本文が占めていたのをやめた */
-    max-height:0;opacity:0;
-    padding:0 14px;margin-top:0;border-width:0;
-    overflow:hidden;
-    transition:max-height .3s ease, opacity .2s, padding .3s, margin .3s;
+    padding:12px 13px;
+    min-height:170px;max-height:520px;
+    overflow:auto;resize:vertical;
+    -webkit-appearance:none;appearance:none;
+    box-sizing:border-box;
   }
-  .prompt.open{
-    max-height:200em;opacity:1;
-    padding:13px 14px;margin-top:10px;border-width:1px;
-  }
+  .prompt:focus{outline:2px solid var(--pink-num);outline-offset:1px;background:#fff}
 
   /* 本文は「貼るもの」で「読むもの」ではない。だから第二ボタンに格下げ */
   .peek{
@@ -779,6 +827,15 @@
   }
   .f-lead{font-family:'Yusei Magic',sans-serif;font-size:1rem;color:#A83E58;margin-top:5px}
   .f-sub{font-size:.75rem;color:var(--ink-mid);margin-top:6px;line-height:1.7}
+  /* 更新の約束の理由として読ませる。注意書きにしない */
+  .f-how{
+    margin-top:9px;
+    font-size:.7rem;line-height:1.75;
+    color:#C58898;
+  }
+  .br-sp2{display:none}
+  @media(max-width:430px){ .br-sp2{display:inline} }
+
   .f-ig{
     display:inline-flex;align-items:center;gap:7px;margin-top:13px;
     font-size:.81rem;font-weight:700;padding:9px 20px;
@@ -949,7 +1006,8 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="#B9A99C" stroke-width="2.6" stroke-linecap="round">
           <circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>
         </svg>
-        <input id="q" type="search" placeholder="やりたいことで探す（例：おたより 画像）" autocomplete="off">
+        <input id="q" type="search" placeholder="やりたいことで探す（例：おたより 画像）" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="sug">
+        <ul class="sug" id="sug" role="listbox" hidden></ul>
       </div>
       <p class="tabs-lead" id="tabsLead" hidden>カテゴリは右にスライドすると、まだ続きがあるよ</p>
 
@@ -978,6 +1036,7 @@
     <div class="f-band">
       <p class="f-lead">巻物は、少しずつふえていきます。</p>
       <p class="f-sub">「こんなのが欲しい」はInstagramのメッセージへ。<br>先生のリクエストから作っています。</p>
+      <p class="f-how">どの呪文がよく使われているかを見て、<br class="br-sp2">次に作るものを決めています。</p>
       <a class="f-ig" href="https://www.instagram.com/hoiku_no_sasuke/" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6" fill="currentColor"/>
@@ -1136,9 +1195,16 @@ const $ = s => document.querySelector(s);
 const grid = $('#grid'), tabs = $('#tabs'), q = $('#q'), zones = document.querySelectorAll('.zone');
 
 let DATA = {prompts:[], gpts:[]};
-let zone = 'prompts', cat = 'すべて', cleared = new Set();
+/* 初期ゾーン。巻物を使えた実績がある人は、次から巻物で開く。
+   巻物はChatGPTのアカウントが要るため、未経験の人には呪文のまま
+   （呪文ならGeminiにも貼れる＝逃げ道がある） */
+function initialZone(){
+  try{ return localStorage.getItem('sasuke_maki_ok') === '1' ? 'gpts' : 'prompts'; }catch{ return 'prompts'; }
+}
+let zone = initialZone(), cat = 'すべて', cleared = new Set();
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cssEsc = s => String(s ?? '').replace(/["\\]/g, '\\$&');
 const list = () => DATA[zone] || [];
 
 /* ── 読み込み ──────────────────────────
@@ -1212,6 +1278,10 @@ function showStale(at){
 
 function start(){
   restore();
+  // 記憶したゾーンに合わせて、タブの見た目もそろえる
+  zones.forEach(b => b.setAttribute('aria-selected', b.dataset.zone === zone));
+  const note = document.getElementById('gptsNote');
+  if (note) note.hidden = (zone !== 'gpts');
   updateCount();
   openHowtoFirstTime();
   // 巻物が0本ならタブ自体を隠す
@@ -1306,16 +1376,25 @@ function kana(s){
    先生は「4歳児8月ねらい」のように、年齢・月・種類をスペース無しで
    つなげて打つ。そのままだと1個の塊として探して0件になるので、
    年齢（○歳児）と月（○月）を切り出して、別々の語として扱う */
+/* 検索語から、年齢と月を取り除く。
+   実ログ222件で検証したところ、先生は「月案 １歳児」「8月製作 0歳児」の
+   ように年齢・月を足して絞り込もうとするが、どの呪文にも「1歳児」とは
+   書いていないため、足した瞬間に0件になっていた。
+   年齢と月はどの呪文でも指定できるので、絞り込む意味がない。捨てる。
+   （43件→75件が当たるようになる） */
+const AGE_RE = /(満\s*)?[0-9０-９]+\s*[,、]?\s*[0-9０-９]*\s*(歳児|歳|さいじ|さい)/g;
+const MON_RE = /[0-9０-９]+\s*月(?!案)|はちがつ|くがつ|しちがつ/g;
+
 function splitQuery(kw){
-  let rest = kw;
-  const parts = [];
-  // ○歳児 / ○歳
-  rest = rest.replace(/(\d+\s*歳児?)/g, (m) => { parts.push(m.replace(/\s/g,'')); return ' '; });
-  // ○月
-  rest = rest.replace(/(\d+\s*月)/g, (m) => { parts.push(m.replace(/\s/g,'')); return ' '; });
-  // 残りをスペースで分割
-  rest.split(/[\s　]+/).filter(Boolean).forEach(w => parts.push(w));
+  const stripped = kw.replace(AGE_RE, ' ').replace(MON_RE, ' ');
+  const parts = stripped.split(/[\s　、,]+/).filter(Boolean);
+  // 年齢・月しか打たれていないときは、元の語で探す
   return parts.length ? parts : [kw];
+}
+
+/* 年齢・月だけが打たれたか（「0歳児」「8月」など） */
+function isOnlyAgeMonth(kw){
+  return !kw.replace(AGE_RE,' ').replace(MON_RE,' ').replace(/[\s　、,]/g,'');
 }
 
 function hit(p, kw){
@@ -1349,6 +1428,69 @@ function bestGpts(kw){
     if (score > bestScore){ bestScore = score; best = g; }
   });
   return best || DATA.gpts.find(g => !String(g.id).startsWith('#') && g.url) || null;
+}
+
+/* 打っている途中で候補を出す。
+   実ログで「打ちかけ」が69件あった（せい→せいさく、くらすた→クラスだより、
+   おたゆ→おたよら→おたより）。候補が出ないので消して打ち直していた */
+/* 濁点をならす。実ログに「くらすた」→クラスだより が当たらない例があった。
+   打ちかけでは濁点まで正確に打たれないので、候補出しだけ緩くする。
+   本検索には使わない（精度を落とさないため） */
+const DAKU = {'が':'か','ぎ':'き','ぐ':'く','げ':'け','ご':'こ','ざ':'さ','じ':'し','ず':'す','ぜ':'せ','ぞ':'そ',
+  'だ':'た','ぢ':'ち','づ':'つ','で':'て','ど':'と','ば':'は','び':'ひ','ぶ':'ふ','べ':'へ','ぼ':'ほ',
+  'ぱ':'は','ぴ':'ひ','ぷ':'ふ','ぺ':'へ','ぽ':'ほ','ゃ':'や','ゅ':'ゆ','ょ':'よ','っ':'つ','ぁ':'あ','ぃ':'い','ぅ':'う','ぇ':'え','ぉ':'お'};
+function loose(s){
+  return kana(s).replace(/[ぁ-ん]/g, c => DAKU[c] || c);
+}
+
+/* 候補は検索窓の下（grid の外）にあるので、専用にハンドラを付ける */
+document.getElementById('sug').addEventListener('click', e => {
+  const it = e.target.closest('[data-sug]');
+  if (!it) return;
+  q.value = it.dataset.sug;
+  document.getElementById('sug').hidden = true;
+  q.setAttribute('aria-expanded','false');
+  const tw = document.getElementById('tabsWrap');
+  if (tw) tw.style.display = 'none';
+  render();
+  q.blur();
+});
+
+function suggest(kw){
+  const box = document.getElementById('sug');
+  if (!box) return;
+  const k = loose(kw.trim());
+  if (!k){ box.hidden = true; q.setAttribute('aria-expanded','false'); return; }
+
+  const pool = [
+    ...DATA.prompts.map(p => ({...p, _kind:'prompts'})),
+    ...DATA.gpts.map(p => ({...p, _kind:'gpts'}))
+  ].filter(p => !String(p.id).startsWith('#'));
+
+  // 打ちかけでも当たるよう、前方一致を優先して並べる
+  const scored = [];
+  pool.forEach(p => {
+    const title = loose(p.title);
+    const words = loose([p.category, (p.tags||[]).join(' '), p.search].filter(Boolean).join(' '))
+      .split(/[\s,、]+/).filter(Boolean);
+    let s = 0;
+    if (title.startsWith(k)) s = 5;
+    else if (title.includes(k)) s = 4;
+    else if (words.some(w => w.startsWith(k))) s = 3;
+    else if (words.some(w => w.includes(k))) s = 2;
+    if (s) scored.push({p, s});
+  });
+  scored.sort((a,b) => b.s - a.s);
+  const top = scored.slice(0, 6);
+
+  if (!top.length){ box.hidden = true; q.setAttribute('aria-expanded','false'); return; }
+  box.innerHTML = top.map(({p}) => `
+    <li role="option"><button class="sug-item" data-sug="${esc(p.title)}">
+      <span class="sug-kind ${p._kind==='gpts'?'b':'p'}">${p._kind==='gpts'?'巻物':'呪文'}</span>
+      <span class="sug-t">${esc(p.title)}</span>
+    </button></li>`).join('');
+  box.hidden = false;
+  q.setAttribute('aria-expanded','true');
 }
 
 function render(){
@@ -1505,7 +1647,14 @@ function promptCard(p, i){
         </button>
       </div>
       ${videoBtn(p)}
-      <pre class="prompt" id="p${esc(p.id)}">${esc(p.prompt)}</pre>
+      <div class="prompt-wrap" id="p${esc(p.id)}">
+        <p class="fill-hint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+          <span><b>この下に、そのまま書きこめます。</b><br>【　】や「ここに記入」を、クラスの様子に書きかえてね。</span>
+        </p>
+        <textarea class="prompt" data-fill="${esc(p.id)}" spellcheck="false">${esc(p.prompt)}</textarea>
+        <p class="fill-note">書きかえたら「コピーする」を押してね</p>
+      </div>
     </article>`;
 }
 
@@ -1548,6 +1697,20 @@ grid.addEventListener('click', async e => {
   if (more){
     const box = document.getElementById(more.dataset.more);
     const open = box.classList.toggle('open');
+    if (open){
+      const ta = box.querySelector('textarea');
+      setTimeout(() => {
+        autoGrow(ta);
+        if (ta && !ta.dataset.placed){
+          const m = ta.value.match(/▼ここに記入▼|【\s*】|【ここから記入してください】|（ここから記入/);
+          if (m){
+            const i = ta.value.indexOf(m[0]) + m[0].length;
+            try{ ta.setSelectionRange(i, i); }catch{}
+          }
+          ta.dataset.placed = '1';
+        }
+      }, 340);
+    }
     more.setAttribute('aria-expanded', open);
     more.childNodes[0].nodeValue = open ? 'とじる' : 'プロンプトを見る';
     return;
@@ -1590,8 +1753,11 @@ grid.addEventListener('click', async e => {
     return;
   }
 
-  // GPTsをひらく＝つかった
+  // GPTsをひらく＝つかった（＝ChatGPTを持っている人だと分かる）
   const open = e.target.closest('[data-open]');
+  if (open){
+    try{ localStorage.setItem('sasuke_maki_ok','1'); }catch{}
+  }
   if (open){
     const g = DATA.gpts.find(p => p.id === open.dataset.open);
     log('open', g);
@@ -1604,7 +1770,12 @@ grid.addEventListener('click', async e => {
   if (!btn) return;
 
   const item = DATA.prompts.find(p => p.id === btn.dataset.id);
-  const ok = await copy(item.prompt);
+  /* 書きかえた内容があれば、そちらをコピーする。
+     深夜にプロンプトを検索窓へ貼る事故が繰り返されていた。
+     原因は「書きこむ場所が図鑑に無かったこと」だった */
+  const ta = document.querySelector('textarea[data-fill="' + cssEsc(item.id) + '"]');
+  const body = (ta && ta.value.trim()) ? ta.value : item.prompt;
+  const ok = await copy(body);
   if (!ok){ btn.textContent = '長押しでコピーしてください'; return; }
 
   log('copy', item); // コピーが成功した時だけ記録する
@@ -1619,6 +1790,16 @@ grid.addEventListener('click', async e => {
 /* コピーした直後に、貼る場所を教える。
    ログで「プロンプト本文を検索窓に貼る」事故が起きていた。
    コピー成功の瞬間が、一番迷子になりやすい */
+/* 入力に合わせて伸ばす。スマホの小さな枠に長文は書けない */
+function autoGrow(ta){
+  if (!ta) return;
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 520) + 'px';
+}
+document.addEventListener('input', e => {
+  if (e.target.classList && e.target.classList.contains('prompt')) autoGrow(e.target);
+});
+
 function showGoTo(card, item){
   if (!card || card.querySelector('.goto')) return;
   const el = document.createElement('div');
@@ -1669,6 +1850,13 @@ async function copy(text){
 /* 使い方は、初回だけ開いておく。
    AI初心者ほど「使い方」を自分から押さないため。
    一度でも閉じたら、次からは畳んだまま */
+document.addEventListener('click', e => {
+  if (!e.target.closest('#sug') && e.target !== q){
+    const b = document.getElementById('sug');
+    if (b) { b.hidden = true; q.setAttribute('aria-expanded','false'); }
+  }
+});
+
 function openHowtoFirstTime(){
   const ht = document.getElementById('howto');
   if (!ht) return;
@@ -1720,6 +1908,7 @@ q.addEventListener('input', () => {
     const lead = document.getElementById('tabsLead');
     if (lead && on) lead.hidden = true;
     render();
+    suggest(q.value);
     if (!on){ buildTabs(); }
   }, 140);
 });
