@@ -289,6 +289,24 @@
   .sug-kind.b{background:var(--blue)}
   .sug-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+  /* 実ログの検索語から。打ちかけ69件の受け皿。
+     打たずに押せば、確実に当たる */
+  .hot{margin-top:13px}
+  .hot-lab{
+    display:block;font-size:.68rem;color:var(--ink-soft);
+    margin-bottom:6px;
+  }
+  .hot-list{display:flex;flex-wrap:wrap;gap:6px}
+  .hot-list button{
+    font-family:inherit;font-size:.75rem;font-weight:700;
+    padding:7px 13px;min-height:34px;
+    background:#fff;color:var(--ink-mid);
+    border:1.5px solid var(--cream-line);
+    border-radius:999px;cursor:pointer;transition:.12s;
+  }
+  .hot-list button:hover{background:var(--cream);border-color:#DFC08A}
+  .hot-list button:focus-visible{outline:2px solid var(--pink-num);outline-offset:2px}
+
   .zone-lead{
     margin:14px 0 7px;
     font-family:'Yusei Magic',sans-serif;
@@ -425,6 +443,13 @@
   }
   .tab:hover{border-color:var(--pink-num);color:var(--pink-deep)}
   .tab[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  /* 今の時期。カテゴリではなく「いつやるか」の入口 */
+  .tab-now{
+    border-color:#CBD9EC;color:var(--blue);background:#F4F8FD;
+  }
+  .tab-now::before{content:"🗓 ";font-size:.72rem}
+  .tab-now[aria-selected="true"]{background:var(--blue);color:#fff;border-color:var(--blue)}
 
   /* つかったもの＝ハンコと同じ朱色。他のカテゴリとは種類が違うので色で分ける */
   .tab-used{
@@ -592,6 +617,7 @@
   .copy:hover{filter:brightness(1.05)}
   .copy:active{transform:translateY(3px);box-shadow:0 0 0 #C96C6C}
   .copy:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+  .copy.done svg{width:15px;height:15px;margin-right:5px;vertical-align:-2px}
   .copy.done{background:var(--blue);box-shadow:0 3px 0 var(--blue-deep)}
 
   /* 「いつ使うか」は、その呪文を使うか決める一番の手がかり。
@@ -983,6 +1009,20 @@
       </div>
     </details>
 
+    <div class="hot" id="hot">
+      <span class="hot-lab">よく探されているもの</span>
+      <div class="hot-list">
+        <button data-hot="連絡帳">連絡帳</button>
+        <button data-hot="月案">月案</button>
+        <button data-hot="週案">週案</button>
+        <button data-hot="日誌">日誌</button>
+        <button data-hot="おたより">おたより</button>
+        <button data-hot="製作">製作</button>
+        <button data-hot="あそび">あそび</button>
+        <button data-hot="行事">行事</button>
+      </div>
+    </div>
+
     <p class="zone-lead">まずは、つかいたいモードを選んでね</p>
 
     <div class="zones" role="tablist">
@@ -1314,6 +1354,22 @@ zones.forEach(z => z.addEventListener('click', () => {
 
 /* ── カテゴリタブ ── */
 const USED = '__used__';   // 「つかったもの」タブの内部名
+const NOW  = '__now__';    // 「今の時期」タブの内部名
+
+/* 実ログで、月末に月案の検索が3倍になっていた（12→20→66件）。
+   先生はカテゴリではなく「時期」で探している。
+   月のどこにいるかで、出すものを変える */
+function nowTheme(){
+  const d = new Date().getDate();
+  if (d >= 21) return {label:'月末のしごと', words:['月案','ねらい','指導計画','おたより','園だより','要録']};
+  if (d <= 7)  return {label:'月はじめのしごと', words:['おたより','園だより','環境','壁面','製作','週案']};
+  return {label:'今週のしごと', words:['週案','日誌','連絡帳','ヒヤリハット','記録']};
+}
+function matchNow(p){
+  const t = nowTheme();
+  const hay = kana([p.title, p.category, (p.tags||[]).join(' '), p.search].filter(Boolean).join(' '));
+  return t.words.some(w => hay.includes(kana(w)));
+}
 
 function buildTabs(){
   const cats = ['すべて', ...new Set(list().map(p => p.category).filter(Boolean))];
@@ -1325,9 +1381,13 @@ function buildTabs(){
   tabs.innerHTML = cats.map((c, i) => {
     const btn = `<button class="tab" role="tab" aria-selected="${c===cat}" data-cat="${esc(c)}">${esc(c)}</button>`;
     // 「すべて」の直後に挿す
-    if (i === 0 && usedHere){
-      const n = list().filter(p => cleared.has(p.id)).length;
-      return btn + `<button class="tab tab-used" role="tab" aria-selected="${cat===USED}" data-cat="${USED}">つかったもの <i>${n}</i></button>`;
+    if (i === 0){
+      let extra = `<button class="tab tab-now" role="tab" aria-selected="${cat===NOW}" data-cat="${NOW}">${esc(nowTheme().label)}</button>`;
+      if (usedHere){
+        const n = list().filter(p => cleared.has(p.id)).length;
+        extra += `<button class="tab tab-used" role="tab" aria-selected="${cat===USED}" data-cat="${USED}">つかったもの <i>${n}</i></button>`;
+      }
+      return btn + extra;
     }
     return btn;
   }).join('');
@@ -1444,6 +1504,17 @@ function loose(s){
 }
 
 /* 候補は検索窓の下（grid の外）にあるので、専用にハンドラを付ける */
+document.getElementById('hot').addEventListener('click', e => {
+  const b = e.target.closest('[data-hot]');
+  if (!b) return;
+  q.value = b.dataset.hot;
+  document.getElementById('tabsWrap').style.display = 'none';
+  const lead = document.getElementById('tabsLead');
+  if (lead) lead.hidden = true;
+  render();
+  document.getElementById('grid').scrollIntoView({behavior:'smooth', block:'start'});
+});
+
 document.getElementById('sug').addEventListener('click', e => {
   const it = e.target.closest('[data-sug]');
   if (!it) return;
@@ -1508,6 +1579,7 @@ function render(){
 
   const items = pool.filter(p => {
     if (cat === USED){ if (!cleared.has(p.id)) return false; }
+    else if (cat === NOW){ if (!matchNow(p)) return false; }
     else if (!searching && cat !== 'すべて' && p.category !== cat) return false;
     if (!kw) return true;
     return hit(p, kw);
@@ -1541,6 +1613,13 @@ function render(){
   if (!items.length){
     // 見つからなかった検索語は、次に作るネタになる
     if (kw.length >= 2) logMiss(kw);
+    if (cat === NOW && !kw){
+      grid.innerHTML = `<div class="state">
+        <b>${esc(nowTheme().label)}は、まだ用意がありません</b>
+        <p>「すべて」から探してみてください。</p>
+      </div>`;
+      return;
+    }
     if (cat === USED && !kw){
       grid.innerHTML = `<div class="state">
         <b>まだ、つかったものがありません</b>
@@ -1780,11 +1859,13 @@ grid.addEventListener('click', async e => {
 
   log('copy', item); // コピーが成功した時だけ記録する
   showGoTo(btn.closest('.card'), item);
-  btn.textContent = 'コピーしました';
+  /* 何文字とれたかを見せる。実ログで6連打・4連打があった。
+     「本当にコピーできた?」が分からず押し直している */
+  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 7"/></svg>コピーできました（' + body.length.toLocaleString() + '文字）';
   btn.classList.add('done');
   markCleared(item.id, btn.closest('.card'));
 
-  setTimeout(() => { btn.textContent = 'もう一度コピー'; btn.classList.remove('done'); }, 1800);
+  setTimeout(() => { btn.textContent = 'もう一度コピー'; btn.classList.remove('done'); }, 3200);
 });
 
 /* コピーした直後に、貼る場所を教える。
