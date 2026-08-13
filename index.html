@@ -1633,17 +1633,24 @@ let timer;
 /* 検索を確定して、キーボードを閉じ、結果が見える位置まで運ぶ。
    実機で「キーボードが画面の半分を占めて、候補も結果も見えない」
    という問題が出た。スマホでは閉じるまでが検索の一部 */
+/* 候補リストだけ閉じる。キーボードは触らない。
+
+   iOSでは blur した入力欄がしばらく反応せず、
+   実機で「打ち替えに何回も押す」問題が起きた。
+   閉じたい理由は「結果を見たいから」なので、
+   スクロールで結果を見せれば足りる。 */
 function closeKeyboard(){
   const box = document.getElementById('sug');
   if (box){ box.hidden = true; q.setAttribute('aria-expanded','false'); }
   cancelMiss();
-  /* iOSは blur だけでは閉じないことがある。
-     readonly を使うと、閉じたあと入力欄が反応しなくなり
-     「3回押さないと打ち替えられない」状態になったので、
-     見えないボタンにフォーカスを移して閉じる */
+}
+
+/* 候補を選んだときだけ、キーボードも下げる。
+   押した時点で入力は終わっているので、副作用が出ない */
+function closeKeyboardHard(){
+  closeKeyboard();
   const sink = document.getElementById('sink');
   if (sink){ sink.focus({preventScroll:true}); sink.blur(); }
-  q.blur();
 }
 
 /* 検索結果の先頭が見える位置まで運ぶ */
@@ -1668,11 +1675,11 @@ document.getElementById('sug').addEventListener('click', e => {
   const lead = document.getElementById('tabsLead');
   if (lead) lead.hidden = true;
   render();
-  closeKeyboard();
+  closeKeyboardHard();
   showResults();
 });
 
-/* エンター（検索キー）で閉じる */
+/* エンター（検索キー）：キーボードは閉じず、結果まで運ぶ */
 q.addEventListener('keydown', e => {
   if (e.key === 'Enter' || e.keyCode === 13){
     e.preventDefault();
@@ -2138,23 +2145,19 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#sug') && e.target !== q){
     const b = document.getElementById('sug');
     if (b) { b.hidden = true; q.setAttribute('aria-expanded','false'); }
-    /* 検索欄から離れたら、キーボードも下げる。
-       入力中の欄（プロンプトの記入欄）を触ったときは、そちらの邪魔をしない */
-    if (document.activeElement === q && !e.target.closest('textarea, input')){
-      closeKeyboard();
-    }
+    /* 候補を閉じるだけ。キーボードには触らない。
+       ここで blur すると、次に打ち替えるとき反応しなくなる */
   }
 });
 
-/* 一覧をスクロールし始めたら、キーボードを下げる。
-   スマホでは「読むために動かす」＝入力は終わっている */
-let scrollBlur;
+/* スクロール中は候補だけ隠す。キーボードは触らない
+   （触ると、次の打ち替えが効かなくなる） */
+let scrollHide;
 addEventListener('scroll', () => {
-  if (document.activeElement !== q) return;
-  clearTimeout(scrollBlur);
-  scrollBlur = setTimeout(() => {
-    if (document.activeElement === q) closeKeyboard();
-  }, 250);
+  const box = document.getElementById('sug');
+  if (!box || box.hidden) return;
+  clearTimeout(scrollHide);
+  scrollHide = setTimeout(() => { box.hidden = true; }, 200);
 }, {passive:true});
 
 function openHowtoFirstTime(){
