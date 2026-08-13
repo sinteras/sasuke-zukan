@@ -1442,12 +1442,17 @@ function kana(s){
    書いていないため、足した瞬間に0件になっていた。
    年齢と月はどの呪文でも指定できるので、絞り込む意味がない。捨てる。
    （43件→75件が当たるようになる） */
-const AGE_RE = /(満\s*)?[0-9０-９]+\s*[,、]?\s*[0-9０-９]*\s*(歳児|歳|さいじ|さい)/g;
+/* 「0,1歳児」「0・1歳児」「満3歳児」など、実ログに出た書き方を拾う */
+const AGE_RE = /(満\s*)?[0-9０-９]+(\s*[,、･・･\/／~〜\-]\s*[0-9０-９]+)*\s*(歳児|歳|さいじ|さい)/g;
 const MON_RE = /[0-9０-９]+\s*月(?!案)|はちがつ|くがつ|しちがつ/g;
 
 function splitQuery(kw){
   const stripped = kw.replace(AGE_RE, ' ').replace(MON_RE, ' ');
-  const parts = stripped.split(/[\s　、,]+/).filter(Boolean);
+  const parts = stripped.split(/[\s　、,]+/).filter(Boolean)
+    /* 年齢や月を抜いたあとに残る助詞を落とす。
+       「0,1歳児の水遊び」→「の水遊び」となって0件だった */
+    .map(w => w.replace(/^[のでにをはがともへや]+/, '').replace(/[のでにをはがともへや]+$/, ''))
+    .filter(Boolean);
   // 年齢・月しか打たれていないときは、元の語で探す
   return parts.length ? parts : [kw];
 }
@@ -1461,11 +1466,17 @@ function hit(p, kw){
   /* search 列は「先生が打ちそうな言葉」の置き場。
      tags と違ってカードに表示しないので、いくら入れても見た目が汚れない。
      かな表記・同義語・季節など、タイトルに無い語をここに入れる */
-  const hay = kana([p.title, p.prompt, p.summary, p.maki, p.category, p.target,
-                    (p.tags||[]).join(' '), p.search]
-    .filter(Boolean).join(' '));
-  // 年齢・月を切り出したうえで AND 検索
-  return splitQuery(kw).every(w => hay.includes(kana(w)));
+  const raw = [p.title, p.prompt, p.summary, p.maki, p.category, p.target,
+               (p.tags||[]).join(' '), p.search].filter(Boolean).join(' ');
+  const hay = kana(raw);
+  const words = splitQuery(kw);
+  // まずは正確に照合
+  if (words.every(w => hay.includes(kana(w)))) return true;
+  /* 見つからなければ、濁点をならして再挑戦。
+     実ログに「くらすた」→クラスだより のように、
+     打ちかけで濁点まで打てていない例があった */
+  const loose_hay = loose(raw);
+  return words.every(w => loose_hay.includes(loose(w)));
 }
 
 /* 計画づくりの言葉。これが検索に含まれていて0件なら、
@@ -1494,8 +1505,8 @@ function bestGpts(kw){
    実ログで「打ちかけ」が69件あった（せい→せいさく、くらすた→クラスだより、
    おたゆ→おたよら→おたより）。候補が出ないので消して打ち直していた */
 /* 濁点をならす。実ログに「くらすた」→クラスだより が当たらない例があった。
-   打ちかけでは濁点まで正確に打たれないので、候補出しだけ緩くする。
-   本検索には使わない（精度を落とさないため） */
+   打ちかけでは濁点まで正確に打たれないため、
+   正確な照合で見つからなかったときの二段目として使う */
 const DAKU = {'が':'か','ぎ':'き','ぐ':'く','げ':'け','ご':'こ','ざ':'さ','じ':'し','ず':'す','ぜ':'せ','ぞ':'そ',
   'だ':'た','ぢ':'ち','づ':'つ','で':'て','ど':'と','ば':'は','び':'ひ','ぶ':'ふ','べ':'へ','ぼ':'ほ',
   'ぱ':'は','ぴ':'ひ','ぷ':'ふ','ぺ':'へ','ぽ':'ほ','ゃ':'や','ゅ':'ゆ','ょ':'よ','っ':'つ','ぁ':'あ','ぃ':'い','ぅ':'う','ぇ':'え','ぉ':'お'};
@@ -1577,7 +1588,7 @@ function render(){
         ...DATA.gpts.map(p => ({...p, _kind:'gpts'})) ]
     : list().map(p => ({...p, _kind:zone}));
 
-  const items = pool.filter(p => {
+  let items = pool.filter(p => {
     if (cat === USED){ if (!cleared.has(p.id)) return false; }
     else if (cat === NOW){ if (!matchNow(p)) return false; }
     else if (!searching && cat !== 'すべて' && p.category !== cat) return false;
@@ -1585,10 +1596,39 @@ function render(){
     return hit(p, kw);
   });
 
+  /* 全語一致で0件のときの救済。
+     実ログの「満３歳児、粘土遊び、戸外遊び」のように、
+     先生は条件を並べて絞り込む。全部を含む呪文が無いと全滅していた。
+     一番多くの語が当たったものを出す（2語以上のときだけ） */
+  if (!items.length && searching){
+    let words = splitQuery(kw);
+    /* 1語に見えても、実は複合語のことがある。
+       「粘土遊び」「水遊びの楽しみ方」のように、
+       先生はつなげて打つ。よく使う語で切り出して試す */
+    if (words.length === 1){
+      const PARTS = ['あそび','遊び','製作','せいさく','ねらい','月案','週案','日誌','記録',
+                     'おたより','便り','連絡帳','行事','活動','水','粘土','感触','戸外','室内','散歩',
+                     '楽しみ方','導入','進め方','書き方','作り方','アイデア','ネタ'];
+      const found = PARTS.filter(x => kana(words[0]).includes(kana(x)));
+      if (found.length) words = found;
+    }
+    if (words.length >= 1){
+      const scored = [];
+      pool.forEach(p => {
+        if (cat === USED && !cleared.has(p.id)) return;
+        const n = words.filter(w => hit(p, w)).length;
+        if (n) scored.push({p, n});
+      });
+      const best = Math.max.apply(null, scored.map(s => s.n).concat([0]));
+      if (best) items = scored.filter(s => s.n === best).map(s => s.p);
+    }
+  }
+
   /* 検索窓にプロンプト本文が貼られた場合。
      実際にログで起きた事故。「貼る場所」を探して、画面で唯一の
      入力欄である検索窓に貼ってしまう */
   if (kw.length >= 60){
+    cancelMiss();
     log('paste_miss', {id:'-', title:kw.slice(0,60), category:zone});
     grid.innerHTML = `<div class="state paste">
       <b>それは、呪文の本文ですね</b>
@@ -1609,6 +1649,8 @@ function render(){
     if (note) note.hidden = true;
     return;
   }
+
+  if (items.length) cancelMiss();   // 見つかったので、待機中の記録を取り消す
 
   if (!items.length){
     // 見つからなかった検索語は、次に作るネタになる
@@ -1673,7 +1715,8 @@ function render(){
       const np = items.filter(x=>x._kind==='prompts').length;
       const ng = items.filter(x=>x._kind==='gpts').length;
       note.hidden = false;
-      note.innerHTML = `「${esc(q.value)}」の検索結果`
+      const partial = !items.every(p => hit(p, kw));
+      note.innerHTML = `「${esc(q.value)}」${partial ? 'に近いもの' : 'の検索結果'}`
         + (np ? ` <b class="p">呪文 ${np}</b>` : '')
         + (ng ? ` <b class="b">巻物 ${ng}</b>` : '');
     } else {
@@ -1969,13 +2012,37 @@ function restore(){
 
 /* 打っている途中の1文字ずつを記録しないよう、少し待ってからまとめて1回だけ送る */
 let missTimer, missSent = new Set();
+/* 見つからなかった言葉を記録する。ただし「本当に見つからなかった」ときだけ。
+
+   実ログで誤記録が判明した：
+     13:40:37 search_miss 月案    ← 失敗として記録
+     13:42:50 open        月案の巻 ← 実際は見つけて開いていた
+
+   原因は、1.5秒後に記録するタイマーが、結果が出た後も生き残っていたこと。
+   スマホの日本語入力は「げつあん」→変換→「月案」と段階を踏むので、
+   途中で一瞬0件になる。そこで仕掛かったタイマーが、
+   打ち終わって見つかった後に飛んでいた。
+
+   対策：
+     1. 結果が出たら、待機中のタイマーを取り消す（cancelMiss）
+     2. 記録する瞬間に、今の検索語と一致しているか確かめる
+     3. 待ち時間を2.5秒に延ばす（変換が終わるのを待つ） */
+function cancelMiss(){
+  clearTimeout(missTimer);
+  missTimer = null;
+}
+
 function logMiss(kw){
   clearTimeout(missTimer);
   missTimer = setTimeout(() => {
+    // 1.5秒の間に打ち進めていたら、その語はもう「探している途中」ではない
+    if (q.value.trim().toLowerCase() !== kw) return;
+    // 打ち終わった時点で結果が出ているなら、失敗ではない
+    if (document.querySelectorAll('.card').length) return;
     if (missSent.has(kw)) return;
     missSent.add(kw);
     log('search_miss', {id:'-', title:kw, category:zone});
-  }, 1500);
+  }, 2500);
 }
 
 let timer;
@@ -1985,6 +2052,7 @@ q.addEventListener('input', () => {
     // 検索中は、カテゴリタブとモード切替を隠す。
     // 両ゾーンを横断しているので、片方のカテゴリで絞ると意味が壊れる
     const on = !!q.value.trim();
+    if (!on) cancelMiss();   // 検索をやめたのなら、記録しない
     document.getElementById('tabsWrap').style.display = on ? 'none' : '';
     const lead = document.getElementById('tabsLead');
     if (lead && on) lead.hidden = true;
