@@ -760,6 +760,14 @@
     font-size:.69rem;color:var(--ink-soft);line-height:1.7;
   }
 
+  .state.searching{
+    background:var(--cream);
+    border:1.5px dashed var(--cream-line);
+    color:#9A8B7E;
+    padding:26px 16px;
+  }
+  .state.searching b{color:#9A8B7E;font-size:.9rem}
+
   /* 計画づくりの検索 → GPTsへ誘導 */
   .state.plan{
     background:var(--blue-pale);
@@ -1046,7 +1054,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="#B9A99C" stroke-width="2.6" stroke-linecap="round">
           <circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>
         </svg>
-        <input id="q" type="search" placeholder="やりたいことで探す（例：おたより 画像）" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="sug">
+        <input id="q" type="search" enterkeyhint="search" placeholder="やりたいことで探す（例：おたより 画像）" autocomplete="off" autocorrect="off" autocapitalize="off" role="combobox" aria-expanded="false" aria-controls="sug">
         <ul class="sug" id="sug" role="listbox" hidden></ul>
       </div>
       <p class="tabs-lead" id="tabsLead" hidden>カテゴリは右にスライドすると、まだ続きがあるよ</p>
@@ -1523,19 +1531,69 @@ document.getElementById('hot').addEventListener('click', e => {
   const lead = document.getElementById('tabsLead');
   if (lead) lead.hidden = true;
   render();
-  document.getElementById('grid').scrollIntoView({behavior:'smooth', block:'start'});
+  closeKeyboard();
+  showResults();
 });
+
+let timer;
+
+/* 検索を確定して、キーボードを閉じ、結果が見える位置まで運ぶ。
+   実機で「キーボードが画面の半分を占めて、候補も結果も見えない」
+   という問題が出た。スマホでは閉じるまでが検索の一部 */
+function closeKeyboard(){
+  const box = document.getElementById('sug');
+  if (box){ box.hidden = true; q.setAttribute('aria-expanded','false'); }
+  cancelMiss();
+  /* iOSは blur だけでは閉じないことがある。
+     一度 readonly にしてから戻すと、確実にキーボードが下がる */
+  try{
+    q.setAttribute('readonly','readonly');
+    q.blur();
+    setTimeout(() => q.removeAttribute('readonly'), 60);
+  }catch{ q.blur(); }
+}
+
+/* 検索結果の先頭が見える位置まで運ぶ */
+function showResults(){
+  /* 検索欄が画面の上に残る位置まで運ぶ。
+     結果だけを出すと「何で検索したか」が見えなくなるので、
+     検索欄ごと上に寄せる */
+  const search = document.querySelector('.search');
+  if (!search) return;
+  setTimeout(() => {
+    const y = search.getBoundingClientRect().top + window.pageYOffset - 8;
+    window.scrollTo({top: Math.max(0, y), behavior: 'smooth'});
+  }, 140);
+}
 
 document.getElementById('sug').addEventListener('click', e => {
   const it = e.target.closest('[data-sug]');
   if (!it) return;
   q.value = it.dataset.sug;
-  document.getElementById('sug').hidden = true;
-  q.setAttribute('aria-expanded','false');
   const tw = document.getElementById('tabsWrap');
   if (tw) tw.style.display = 'none';
+  const lead = document.getElementById('tabsLead');
+  if (lead) lead.hidden = true;
   render();
-  q.blur();
+  closeKeyboard();
+  showResults();
+});
+
+/* エンター（検索キー）で閉じる */
+q.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.keyCode === 13){
+    e.preventDefault();
+    clearTimeout(timer);
+    emptyWord = q.value.trim().toLowerCase();   // 確定したので、すぐ判定してよい
+    render();
+    closeKeyboard();
+    showResults();
+  }
+});
+
+/* 検索欄の×を押したときも閉じる */
+q.addEventListener('search', () => {
+  if (!q.value.trim()) closeKeyboard();
 });
 
 function suggest(kw){
@@ -1653,6 +1711,15 @@ function render(){
   if (items.length) cancelMiss();   // 見つかったので、待機中の記録を取り消す
 
   if (!items.length){
+    /* 打っている途中では「ありません」を出さない。
+       日本語は変換の前後で結果が変わるので、
+       手が止まってから判定する */
+    if (searching && !emptyOK(kw)){
+      grid.innerHTML = `<div class="state searching"><b>さがしています…</b></div>`;
+      const note0 = document.getElementById('mixNote');
+      if (note0) note0.hidden = true;
+      return;
+    }
     // 見つからなかった検索語は、次に作るネタになる
     if (kw.length >= 2) logMiss(kw);
     if (cat === NOW && !kw){
@@ -1978,8 +2045,24 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#sug') && e.target !== q){
     const b = document.getElementById('sug');
     if (b) { b.hidden = true; q.setAttribute('aria-expanded','false'); }
+    /* 検索欄から離れたら、キーボードも下げる。
+       入力中の欄（プロンプトの記入欄）を触ったときは、そちらの邪魔をしない */
+    if (document.activeElement === q && !e.target.closest('textarea, input')){
+      closeKeyboard();
+    }
   }
 });
+
+/* 一覧をスクロールし始めたら、キーボードを下げる。
+   スマホでは「読むために動かす」＝入力は終わっている */
+let scrollBlur;
+addEventListener('scroll', () => {
+  if (document.activeElement !== q) return;
+  clearTimeout(scrollBlur);
+  scrollBlur = setTimeout(() => {
+    if (document.activeElement === q) closeKeyboard();
+  }, 250);
+}, {passive:true});
 
 function openHowtoFirstTime(){
   const ht = document.getElementById('howto');
@@ -2027,6 +2110,19 @@ let missTimer, missSent = new Set();
      1. 結果が出たら、待機中のタイマーを取り消す（cancelMiss）
      2. 記録する瞬間に、今の検索語と一致しているか確かめる
      3. 待ち時間を2.5秒に延ばす（変換が終わるのを待つ） */
+/* 0件画面を出してよいか。入力が止まって0.7秒たったらOK。
+   変換途中の一瞬の0件で「ありません」を出さないための猶予 */
+let emptyTimer = null, emptyWord = '';
+function emptyOK(kw){
+  if (emptyWord === kw) return true;
+  clearTimeout(emptyTimer);
+  emptyTimer = setTimeout(() => {
+    emptyWord = kw;
+    if (q.value.trim().toLowerCase() === kw) render();
+  }, 700);
+  return false;
+}
+
 function cancelMiss(){
   clearTimeout(missTimer);
   missTimer = null;
@@ -2045,8 +2141,8 @@ function logMiss(kw){
   }, 2500);
 }
 
-let timer;
 q.addEventListener('input', () => {
+  emptyWord = '';          // 打ち直したら、0件判定はやり直し
   clearTimeout(timer);
   timer = setTimeout(() => {
     // 検索中は、カテゴリタブとモード切替を隠す。
