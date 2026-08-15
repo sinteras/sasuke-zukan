@@ -1150,6 +1150,11 @@
    ═══════════════════════════════════════════ */
 const API_URL = 'https://script.google.com/macros/s/AKfycbyJeNr0luaR0m1oJz3HuFig6cj5W6FtkoQFwCIidxt5UMa8I5TIm1nxpv6pHH9ZG5ff/exec';
 
+/* ログ送信の合言葉。GAS側と一致していないと記録されない。
+   HTMLを読めば見えてしまうが、URLだけ知った人が
+   偽のログを流し込むのを防ぐ役には立つ */
+const LOG_KEY = 'dot30h8tm25lw8v9';
+
 /* リクエストの受け先。DMは本文を渡せないので、コピーしてから開く */
 const IG_URL = 'https://www.instagram.com/hoiku_no_sasuke/';
 
@@ -1254,6 +1259,7 @@ function log(kind, item){
   if (!API_URL) return; // 見本データで動かしている間は何も送らない
 
   const body = JSON.stringify({
+    k: LOG_KEY,          // 図鑑からの送信であることの合言葉
     kind,
     id: item?.id || '',
     title: item?.title || '',
